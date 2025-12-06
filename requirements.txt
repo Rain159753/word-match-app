@@ -1,4 +1,5 @@
 streamlit
+streamlit-lottie
 pandas
 openpyxl
 matplotlib
