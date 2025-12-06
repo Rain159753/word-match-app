@@ -32,9 +32,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 初始化 Session State (给程序安个记忆脑) ---
+# --- 初始化 Session State ---
 if 'analysis_results' not in st.session_state:
-    st.session_state.analysis_results = None # 用来存由于单词计数结果
+    st.session_state.analysis_results = None 
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2097/2097055.png", width=80) 
@@ -49,11 +49,10 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # 这里的按钮只负责“触发计算”
     run_button = st.button("🚀 启动分析引擎", type="primary", use_container_width=True)
 
 # ==========================================
-# 2. 主页面内容 (标题修改区)
+# 2. 主页面内容
 # ==========================================
 
 lottie_tech = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_qp1q7mct.json")
@@ -105,21 +104,18 @@ if 'nlp' not in st.session_state:
 # ==========================================
 # 4. 核心逻辑：触发计算
 # ==========================================
-# 只有点击按钮时，才进行“重计算”，并把结果存入 session_state
 if run_button:
     if not book_file:
         st.error("❌ 错误：未检测到书籍数据源。请在侧边栏上传。")
     elif not vocab_files:
         st.error("❌ 错误：未检测到参考词表。请在侧边栏上传。")
     else:
-        # --- A. 处理书籍 ---
         st.subheader("🟢 实时处理进度")
         status_text = st.empty()
         progress_bar = st.progress(0)
         
         status_text.markdown("**Step 1/2: 正在解析原始文本流...**")
         
-        # 读取文件
         text = book_file.getvalue().decode("utf-8")
         words = re.findall(r"[a-zA-Z]+", text)
         
@@ -150,23 +146,20 @@ if run_button:
         
         word_counts = Counter(lemmas)
         
-        # === 关键点：计算完存入记忆，而不是直接显示 ===
         st.session_state.analysis_results = word_counts
         
         progress_bar.empty()
-        status_text.empty() # 清理掉进度文字
+        status_text.empty()
         st.success(f"✅ 分析完成！已存入缓存。共发现 {len(word_counts)} 个唯一词汇。")
 
 # ==========================================
-# 5. 显示逻辑：渲染结果
+# 5. 显示逻辑
 # ==========================================
-# 只要记忆里有结果，就一直显示（不管你有没有按按钮，不管你有没有刷新）
 if st.session_state.analysis_results:
     word_counts = st.session_state.analysis_results
     
     st.header("📊 数据洞察报告")
     
-    # 重新读取 vocab_files (Streamlit 的 uploader 会缓存文件内容，所以是安全的)
     if vocab_files:
         vocab_names = [v.name for v in vocab_files]
         tabs = st.tabs([f"📁 {name}" for name in vocab_names])
@@ -174,7 +167,6 @@ if st.session_state.analysis_results:
         for i, v_file in enumerate(vocab_files):
             with tabs[i]:
                 vocab_name = v_file.name.split('.')[0]
-                # 每次读取前如果不重置指针，多次读取可能为空，所以用 getvalue() 最稳
                 v_content = v_file.getvalue().decode("utf-8")
                 vocab_words = set(line.strip().lower() for line in v_content.splitlines() if line.strip())
                 
@@ -207,11 +199,9 @@ if st.session_state.analysis_results:
                     if df.empty:
                         st.info("暂无数据")
                     else:
-                        # 插入勾选列
                         df.insert(0, "Select", False)
                         
-                        # 关键点：给 data_editor 一个唯一的 key，防止它在重绘时丢失状态
-                        # 我们用 vocab_name 作为 key 的一部分
+                        # 编辑器也加个 key
                         edited_df = st.data_editor(
                             df,
                             column_config={
@@ -232,6 +222,7 @@ if st.session_state.analysis_results:
                         
                         st.caption(f"已选择 {len(export_data)} 个单词准备导出")
                         
+                        # --- 关键修改点：给每个下载按钮都加上唯一的 key ---
                         if not export_data.empty:
                             output = io.BytesIO()
                             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -244,14 +235,16 @@ if st.session_state.analysis_results:
                                 file_name=f"{vocab_name}_selected.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
-                                type="primary"
+                                type="primary",
+                                key=f"dl_btn_ok_{vocab_name}" # 唯一的 key
                             )
                         else:
                             st.download_button(
                                 "📥 请先勾选单词",
                                 data=b"",
                                 disabled=True,
-                                use_container_width=True
+                                use_container_width=True,
+                                key=f"dl_btn_disabled_{vocab_name}" # 唯一的 key，这里之前没加导致报错
                             )
 
 # ==========================================
@@ -274,7 +267,7 @@ footer_css = """
 }
 </style>
 <div class="footer">
-    <p>⚡ Powered by <b>Zeno</b></p>
+    <p>⚡ Powered by <b>Gemini and Zeno</b></p>
 </div>
 """
 st.markdown(footer_css, unsafe_allow_html=True)
