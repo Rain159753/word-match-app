@@ -4,13 +4,12 @@ import re
 from collections import Counter
 import pandas as pd
 import io
-# import matplotlib.pyplot as plt # 这一行可以去掉了，我们换了更快的展示方式
 from wordcloud import WordCloud
 import requests
 from streamlit_lottie import st_lottie
 
 # ==========================================
-# 0. 魔法函数区：加载动画 & 缓存词云
+# 0. 魔法函数区
 # ==========================================
 
 @st.cache_data
@@ -23,18 +22,15 @@ def load_lottieurl(url: str):
     except:
         return None
 
-# --- 新增：给词云生成加上缓存 ---
-# 只有当传入的 word_counts 数据变了，它才会重新计算，否则直接秒开
+# 修改点：背景改回白色，适应亮色主题
 @st.cache_data 
 def generate_wordcloud_image(word_counts):
-    # 创建词云对象
     wc = WordCloud(
         width=800, height=500, 
-        background_color='#0E1117', # 配合暗黑背景
-        colormap='plasma',
+        background_color='white', # 改回白色背景
+        colormap='viridis', # 换回一个通用的配色，在白底上也很好看
         font_path=None
     ).generate_from_frequencies(word_counts)
-    # 直接转为图像数组，不经过 matplotlib，速度更快
     return wc.to_array()
 
 # ==========================================
@@ -47,7 +43,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 初始化 Session State ---
 if 'analysis_results' not in st.session_state:
     st.session_state.analysis_results = None 
 
@@ -79,14 +74,16 @@ with col_hero_1:
         st_lottie(lottie_tech, height=200, key="tech_anim")
 
 with col_hero_2:
+    # 修改点：页脚署名更新
     st.markdown("""
         <h1 style='display: inline-block; margin-bottom: 0;'>智能文本数据分析平台</h1>
-        <span style='font-size: 1rem; color: #808080; margin-left: 10px;'> — powered by Zeno</span>
+        <span style='font-size: 1rem; color: #555; margin-left: 10px;'> — powered by Gemini&Zeno</span>
     """, unsafe_allow_html=True)
     
+    # 修改点：背景色改为浅灰 (#F0F2F6)，文字改为深灰 (#31333F)
     st.markdown("""
-    <div style='background-color: #1E1E1E; padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; margin-top: 20px;'>
-        <p style='font-size: 16px; color: #FAFAFA; margin: 0;'>
+    <div style='background-color: #F0F2F6; padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; margin-top: 20px;'>
+        <p style='font-size: 16px; color: #31333F; margin: 0;'>
         欢迎使用下一代文本洞察工具。借助先进的 NLP 技术，我们将非结构化文本转化为可视化的数据资产。
         <br><b>请在左侧控制中枢上传您的数据以开始探索。</b>
         </p>
@@ -117,7 +114,7 @@ if 'nlp' not in st.session_state:
         st.session_state.nlp = load_model()
 
 # ==========================================
-# 4. 核心逻辑：触发计算
+# 4. 核心逻辑
 # ==========================================
 if run_button:
     if not book_file:
@@ -193,9 +190,7 @@ if st.session_state.analysis_results:
                 with c1:
                     st.subheader(f"☁️ {vocab_name} - 语义云图")
                     if not df.empty:
-                        # --- 修改点：使用带缓存的函数生成图片 ---
                         img_array = generate_wordcloud_image(matched_words)
-                        # 直接展示图片，不使用 pyplot，更快
                         st.image(img_array, use_container_width=True)
                     else:
                         st.warning("⚠️ 该词表中未发现任何匹配项。")
@@ -255,6 +250,7 @@ if st.session_state.analysis_results:
 # ==========================================
 # 6. 注入页脚
 # ==========================================
+# 修改点：更新了名字
 footer_css = """
 <style>
 .footer {
@@ -263,7 +259,7 @@ footer_css = """
     bottom: 20px;
     width: auto;
     background-color: transparent;
-    color: #808080;
+    color: #888; /* 稍微深一点的灰色 */
     text-align: left;
     z-index: 999;
     font-family: sans-serif;
@@ -272,7 +268,7 @@ footer_css = """
 }
 </style>
 <div class="footer">
-    <p>⚡ Powered by <b>Zeno</b></p>
+    <p>⚡ Powered by <b>Gemini & Zeno</b></p>
 </div>
 """
 st.markdown(footer_css, unsafe_allow_html=True)
