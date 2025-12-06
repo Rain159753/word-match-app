@@ -268,7 +268,8 @@ footer_css = """
 }
 </style>
 <div class="footer">
-    <p>⚡ Powered by <b>Gemini&Zeno</b></p>
+    <p>⚡ Powered by <b>Gemini & Zeno</b></p>
 </div>
 """
 st.markdown(footer_css, unsafe_allow_html=True)
+
