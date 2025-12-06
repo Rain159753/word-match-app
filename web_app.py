@@ -32,6 +32,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- 初始化 Session State (给程序安个记忆脑) ---
+if 'analysis_results' not in st.session_state:
+    st.session_state.analysis_results = None # 用来存由于单词计数结果
+
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/2097/2097055.png", width=80) 
     st.title("控制中枢 ⚙️")
@@ -45,9 +49,8 @@ with st.sidebar:
     
     st.markdown("---")
     
+    # 这里的按钮只负责“触发计算”
     run_button = st.button("🚀 启动分析引擎", type="primary", use_container_width=True)
-    if run_button:
-         st.caption("引擎正在预热，即将开始计算...")
 
 # ==========================================
 # 2. 主页面内容 (标题修改区)
@@ -62,9 +65,6 @@ with col_hero_1:
         st_lottie(lottie_tech, height=200, key="tech_anim")
 
 with col_hero_2:
-    # --- 修改点 1：自定义标题样式 ---
-    # 使用 HTML 混合排版：H1 大标题 + span 灰色小字
-    # font-size: 1rem 大约等于普通正文（单词表）的大小
     st.markdown("""
         <h1 style='display: inline-block; margin-bottom: 0;'>智能文本数据分析平台</h1>
         <span style='font-size: 1rem; color: #808080; margin-left: 10px;'> — powered by Zeno</span>
@@ -103,8 +103,9 @@ if 'nlp' not in st.session_state:
         st.session_state.nlp = load_model()
 
 # ==========================================
-# 4. 核心逻辑
+# 4. 核心逻辑：触发计算
 # ==========================================
+# 只有点击按钮时，才进行“重计算”，并把结果存入 session_state
 if run_button:
     if not book_file:
         st.error("❌ 错误：未检测到书籍数据源。请在侧边栏上传。")
@@ -118,6 +119,7 @@ if run_button:
         
         status_text.markdown("**Step 1/2: 正在解析原始文本流...**")
         
+        # 读取文件
         text = book_file.getvalue().decode("utf-8")
         words = re.findall(r"[a-zA-Z]+", text)
         
@@ -147,18 +149,32 @@ if run_button:
                     lemmas.append(lemma)
         
         word_counts = Counter(lemmas)
+        
+        # === 关键点：计算完存入记忆，而不是直接显示 ===
+        st.session_state.analysis_results = word_counts
+        
         progress_bar.empty()
-        st.success(f"✅ 数据预处理完毕！共发现 {len(word_counts)} 个唯一词汇基元。")
-        
-        # --- B. 匹配与可视化 ---
-        st.header("📊 数据洞察报告")
-        
+        status_text.empty() # 清理掉进度文字
+        st.success(f"✅ 分析完成！已存入缓存。共发现 {len(word_counts)} 个唯一词汇。")
+
+# ==========================================
+# 5. 显示逻辑：渲染结果
+# ==========================================
+# 只要记忆里有结果，就一直显示（不管你有没有按按钮，不管你有没有刷新）
+if st.session_state.analysis_results:
+    word_counts = st.session_state.analysis_results
+    
+    st.header("📊 数据洞察报告")
+    
+    # 重新读取 vocab_files (Streamlit 的 uploader 会缓存文件内容，所以是安全的)
+    if vocab_files:
         vocab_names = [v.name for v in vocab_files]
         tabs = st.tabs([f"📁 {name}" for name in vocab_names])
 
         for i, v_file in enumerate(vocab_files):
             with tabs[i]:
                 vocab_name = v_file.name.split('.')[0]
+                # 每次读取前如果不重置指针，多次读取可能为空，所以用 getvalue() 最稳
                 v_content = v_file.getvalue().decode("utf-8")
                 vocab_words = set(line.strip().lower() for line in v_content.splitlines() if line.strip())
                 
@@ -191,37 +207,31 @@ if run_button:
                     if df.empty:
                         st.info("暂无数据")
                     else:
-                        # --- 修改点 2：添加勾选框 ---
-                        # 1. 插入一个 boolean 类型的列，默认全为 False
+                        # 插入勾选列
                         df.insert(0, "Select", False)
                         
-                        # 2. 使用 data_editor 替代 dataframe，允许用户编辑
-                        # column_config 用来把 Select 列显示为 Checkbox
+                        # 关键点：给 data_editor 一个唯一的 key，防止它在重绘时丢失状态
+                        # 我们用 vocab_name 作为 key 的一部分
                         edited_df = st.data_editor(
                             df,
                             column_config={
                                 "Select": st.column_config.CheckboxColumn(
                                     "导出?",
-                                    help="勾选你想导出的单词",
                                     default=False,
                                 )
                             },
-                            disabled=["Word", "Count"], # 禁止编辑单词和数字，只能点勾选框
+                            disabled=["Word", "Count"],
                             hide_index=True,
                             use_container_width=True,
-                            height=400
+                            height=400,
+                            key=f"editor_{vocab_name}" 
                         )
                         
-                        # 3. 筛选出被勾选的行
                         selected_rows = edited_df[edited_df["Select"] == True]
-                        
-                        # 4. 去掉 Select 列，准备导出
                         export_data = selected_rows.drop(columns=["Select"])
                         
-                        # 5. 显示选中了多少个
                         st.caption(f"已选择 {len(export_data)} 个单词准备导出")
                         
-                        # 6. 生成下载按钮
                         if not export_data.empty:
                             output = io.BytesIO()
                             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -229,7 +239,7 @@ if run_button:
                             processed_data = output.getvalue()
                             
                             st.download_button(
-                                f"📥 导出已选的 {len(export_data)} 个单词 (.xlsx)",
+                                f"📥 导出已选数据 (.xlsx)",
                                 data=processed_data,
                                 file_name=f"{vocab_name}_selected.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -240,12 +250,12 @@ if run_button:
                             st.download_button(
                                 "📥 请先勾选单词",
                                 data=b"",
-                                disabled=True, # 没勾选时禁用按钮
+                                disabled=True,
                                 use_container_width=True
                             )
 
 # ==========================================
-# 5. 注入页脚
+# 6. 注入页脚
 # ==========================================
 footer_css = """
 <style>
@@ -264,7 +274,7 @@ footer_css = """
 }
 </style>
 <div class="footer">
-    <p>⚡ Powered by <b>Gemini</b></p>
+    <p>⚡ Powered by <b>Zeno</b></p>
 </div>
 """
 st.markdown(footer_css, unsafe_allow_html=True)
