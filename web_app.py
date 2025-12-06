@@ -22,13 +22,12 @@ def load_lottieurl(url: str):
     except:
         return None
 
-# 修改点：背景改回白色，适应亮色主题
 @st.cache_data 
 def generate_wordcloud_image(word_counts):
     wc = WordCloud(
         width=800, height=500, 
-        background_color='white', # 改回白色背景
-        colormap='viridis', # 换回一个通用的配色，在白底上也很好看
+        background_color='white', # 强制白底
+        colormap='viridis',
         font_path=None
     ).generate_from_frequencies(word_counts)
     return wc.to_array()
@@ -43,6 +42,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# 初始化 Session State
 if 'analysis_results' not in st.session_state:
     st.session_state.analysis_results = None 
 
@@ -74,13 +74,13 @@ with col_hero_1:
         st_lottie(lottie_tech, height=200, key="tech_anim")
 
 with col_hero_2:
-    # 修改点：页脚署名更新
+    # 标题区
     st.markdown("""
         <h1 style='display: inline-block; margin-bottom: 0;'>智能文本数据分析平台</h1>
-        <span style='font-size: 1rem; color: #555; margin-left: 10px;'> — powered by Gemini&Zeno</span>
+        <span style='font-size: 1rem; color: #555; margin-left: 10px;'> — powered by Gemini & Zeno</span>
     """, unsafe_allow_html=True)
     
-    # 修改点：背景色改为浅灰 (#F0F2F6)，文字改为深灰 (#31333F)
+    # 欢迎语背景色适配亮色模式
     st.markdown("""
     <div style='background-color: #F0F2F6; padding: 15px; border-radius: 10px; border-left: 5px solid #FF4B4B; margin-top: 20px;'>
         <p style='font-size: 16px; color: #31333F; margin: 0;'>
@@ -250,7 +250,7 @@ if st.session_state.analysis_results:
 # ==========================================
 # 6. 注入页脚
 # ==========================================
-# 修改点：更新了名字
+# 修复了空格问题
 footer_css = """
 <style>
 .footer {
@@ -259,7 +259,7 @@ footer_css = """
     bottom: 20px;
     width: auto;
     background-color: transparent;
-    color: #888; /* 稍微深一点的灰色 */
+    color: #888;
     text-align: left;
     z-index: 999;
     font-family: sans-serif;
@@ -272,4 +272,3 @@ footer_css = """
 </div>
 """
 st.markdown(footer_css, unsafe_allow_html=True)
-
