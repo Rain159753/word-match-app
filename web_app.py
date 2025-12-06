@@ -4,14 +4,15 @@ import re
 from collections import Counter
 import pandas as pd
 import io
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt # 这一行可以去掉了，我们换了更快的展示方式
 from wordcloud import WordCloud
 import requests
 from streamlit_lottie import st_lottie
 
 # ==========================================
-# 0. 魔法函数：加载 Lottie 动画
+# 0. 魔法函数区：加载动画 & 缓存词云
 # ==========================================
+
 @st.cache_data
 def load_lottieurl(url: str):
     try:
@@ -21,6 +22,20 @@ def load_lottieurl(url: str):
         return r.json()
     except:
         return None
+
+# --- 新增：给词云生成加上缓存 ---
+# 只有当传入的 word_counts 数据变了，它才会重新计算，否则直接秒开
+@st.cache_data 
+def generate_wordcloud_image(word_counts):
+    # 创建词云对象
+    wc = WordCloud(
+        width=800, height=500, 
+        background_color='#0E1117', # 配合暗黑背景
+        colormap='plasma',
+        font_path=None
+    ).generate_from_frequencies(word_counts)
+    # 直接转为图像数组，不经过 matplotlib，速度更快
+    return wc.to_array()
 
 # ==========================================
 # 1. 页面配置 & 侧边栏
@@ -178,18 +193,10 @@ if st.session_state.analysis_results:
                 with c1:
                     st.subheader(f"☁️ {vocab_name} - 语义云图")
                     if not df.empty:
-                        wc = WordCloud(
-                            width=800, height=500, 
-                            background_color='#0E1117',
-                            colormap='plasma',
-                            font_path=None
-                        ).generate_from_frequencies(matched_words)
-                        
-                        fig, ax = plt.subplots()
-                        fig.patch.set_facecolor('#0E1117')
-                        ax.imshow(wc, interpolation='bilinear')
-                        ax.axis("off")
-                        st.pyplot(fig)
+                        # --- 修改点：使用带缓存的函数生成图片 ---
+                        img_array = generate_wordcloud_image(matched_words)
+                        # 直接展示图片，不使用 pyplot，更快
+                        st.image(img_array, use_container_width=True)
                     else:
                         st.warning("⚠️ 该词表中未发现任何匹配项。")
 
@@ -201,7 +208,6 @@ if st.session_state.analysis_results:
                     else:
                         df.insert(0, "Select", False)
                         
-                        # 编辑器也加个 key
                         edited_df = st.data_editor(
                             df,
                             column_config={
@@ -222,7 +228,6 @@ if st.session_state.analysis_results:
                         
                         st.caption(f"已选择 {len(export_data)} 个单词准备导出")
                         
-                        # --- 关键修改点：给每个下载按钮都加上唯一的 key ---
                         if not export_data.empty:
                             output = io.BytesIO()
                             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -236,7 +241,7 @@ if st.session_state.analysis_results:
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True,
                                 type="primary",
-                                key=f"dl_btn_ok_{vocab_name}" # 唯一的 key
+                                key=f"dl_btn_ok_{vocab_name}" 
                             )
                         else:
                             st.download_button(
@@ -244,7 +249,7 @@ if st.session_state.analysis_results:
                                 data=b"",
                                 disabled=True,
                                 use_container_width=True,
-                                key=f"dl_btn_disabled_{vocab_name}" # 唯一的 key，这里之前没加导致报错
+                                key=f"dl_btn_disabled_{vocab_name}" 
                             )
 
 # ==========================================
@@ -267,7 +272,7 @@ footer_css = """
 }
 </style>
 <div class="footer">
-    <p>⚡ Powered by <b>Gemini and Zeno</b></p>
+    <p>⚡ Powered by <b>Zeno</b></p>
 </div>
 """
 st.markdown(footer_css, unsafe_allow_html=True)
